@@ -7,15 +7,14 @@ const StockControls = ({ item, onUpdate }) => {
         const val = parseInt(amount);
         if (isNaN(val) || val <= 0) return;
 
-        // If subtracting, ensure we don't go below 0 (though logic also handles this)
         const adjustment = isAddition ? val : -val;
-
-        if (!isAddition && item.quantityAvailable + adjustment < 0) {
+        const currentQty = Number(item.quantityAvailable) || 0;
+        if (!isAddition && currentQty + adjustment < 0) {
             alert('Cannot reduce stock below zero.');
             return;
         }
 
-        onUpdate(item.id, adjustment);
+        onUpdate(adjustment);
         setAmount('');
     };
 
@@ -29,17 +28,17 @@ const StockControls = ({ item, onUpdate }) => {
                 onChange={(e) => setAmount(e.target.value)}
                 className="stock-input"
             />
-            <div className="button-group">
+            <div className="flex gap-2">
                 <button
-                    className="btn btn-sm btn-danger"
+                    className="btn btn-sm btn-secondary"
                     onClick={() => handleUpdate(false)}
                     disabled={!amount || item.quantityAvailable === 0}
                     title="Use Stock"
                 >
-                    -
+                    −
                 </button>
                 <button
-                    className="btn btn-sm btn-success"
+                    className="btn btn-sm btn-primary"
                     onClick={() => handleUpdate(true)}
                     disabled={!amount}
                     title="Add Stock"

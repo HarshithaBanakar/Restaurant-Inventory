@@ -13,7 +13,7 @@ const InventoryFormPage = () => {
     // Find item if editing
     const existingItem = useMemo(() => {
         if (!isEditMode) return null;
-        return inventory.find(i => i.id === id);
+        return inventory.find(i => (i.id === id || i._id === id));
     }, [id, inventory, isEditMode]);
 
     // Handle missing item in edit mode

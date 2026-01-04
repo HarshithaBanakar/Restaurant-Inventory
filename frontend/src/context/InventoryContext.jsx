@@ -2,18 +2,28 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 
 const InventoryContext = createContext();
 
-const API_Base = 'http://localhost:5000/api/inventory';
+const API_Base = '/api/inventory';
 
 export const InventoryProvider = ({ children }) => {
     const [inventory, setInventory] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
+    const getHeaders = () => {
+        const token = localStorage.getItem('token');
+        return {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+        };
+    };
+
     // Fetch Inventory
     const fetchInventory = async () => {
         try {
             setLoading(true);
-            const response = await fetch(API_Base);
+            const response = await fetch(API_Base, {
+                headers: getHeaders()
+            });
             if (!response.ok) throw new Error('Failed to fetch inventory');
             const data = await response.json();
             setInventory(data);
@@ -27,6 +37,7 @@ export const InventoryProvider = ({ children }) => {
     };
 
     useEffect(() => {
+        // Only fetch if token exists (optional optimization, but fetchInventory will just fail if not authorized anyway)
         fetchInventory();
     }, []);
 
@@ -35,7 +46,7 @@ export const InventoryProvider = ({ children }) => {
         try {
             const response = await fetch(API_Base, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: getHeaders(),
                 body: JSON.stringify(newItem)
             });
 
@@ -54,16 +65,22 @@ export const InventoryProvider = ({ children }) => {
     // Update Item
     const updateItem = async (id, updatedFields) => {
         try {
+            // Ensure numbers are sent as numbers
+            const payload = { ...updatedFields };
+            if (payload.quantityAvailable !== undefined) payload.quantityAvailable = Number(payload.quantityAvailable);
+            if (payload.reorderLevel !== undefined) payload.reorderLevel = Number(payload.reorderLevel);
+
             const response = await fetch(`${API_Base}/${id}`, {
                 method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(updatedFields)
+                headers: getHeaders(),
+                body: JSON.stringify(payload)
             });
 
             if (!response.ok) throw new Error('Failed to update item');
             const data = await response.json();
 
-            setInventory(prev => prev.map(item => item.id === id ? data : item));
+            // Standardization: data from backend has standardized .id
+            setInventory(prev => prev.map(item => (item.id === id || item._id === id) ? data : item));
             return true;
         } catch (err) {
             console.error(err);
@@ -76,12 +93,13 @@ export const InventoryProvider = ({ children }) => {
     const deleteItem = async (id) => {
         try {
             const response = await fetch(`${API_Base}/${id}`, {
-                method: 'DELETE'
+                method: 'DELETE',
+                headers: getHeaders()
             });
 
             if (!response.ok) throw new Error('Failed to delete item');
 
-            setInventory(prev => prev.filter(item => item.id !== id));
+            setInventory(prev => prev.filter(item => (item.id !== id && item._id !== id)));
             return true;
         } catch (err) {
             console.error(err);
@@ -92,13 +110,12 @@ export const InventoryProvider = ({ children }) => {
 
     // Stock Usage (Increment/Decrement)
     const updateStock = async (id, adjustment) => {
-        // Find current item to calculate new quantity speculatively or let server handle
-        // Better to let server handle, but we need to pass the NEW Quantity usually or the adjustment
-        // Our backend route handles partial updates. Let's calculate new qty here to send it.
-        const item = inventory.find(i => i.id === id);
+        const item = inventory.find(i => (i.id === id || i._id === id));
         if (!item) return;
 
-        const newQty = Math.max(0, item.quantityAvailable + adjustment);
+        // Force numeric calculation
+        const currentQty = Number(item.quantityAvailable) || 0;
+        const newQty = Math.max(0, currentQty + Number(adjustment));
 
         try {
             await updateItem(id, { quantityAvailable: newQty });
@@ -107,11 +124,17 @@ export const InventoryProvider = ({ children }) => {
         }
     };
 
-    // Stats
+    // Stats with logic derived directly from inventory data
+    // Ensure numeric comparison
     const stats = {
         totalItems: inventory.length,
-        lowStock: inventory.filter(i => i.stockStatus === 'Low Stock').length,
-        outOfStock: inventory.filter(i => i.stockStatus === 'Out of Stock').length,
+        available: inventory.filter(i => Number(i.quantityAvailable) > Number(i.reorderLevel)).length,
+        lowStock: inventory.filter(i => {
+            const qty = Number(i.quantityAvailable);
+            const level = Number(i.reorderLevel);
+            return qty <= level && qty > 0;
+        }).length,
+        outOfStock: inventory.filter(i => Number(i.quantityAvailable) === 0).length,
     };
 
     return (

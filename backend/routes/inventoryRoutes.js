@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const InventoryItem = require('../models/inventoryModel');
+const { protect } = require('../middleware/authMiddleware');
 
 // Helper to calculate status
 const calculateStatus = (quantity, reorderLevel) => {
@@ -10,16 +11,18 @@ const calculateStatus = (quantity, reorderLevel) => {
 };
 
 // GET /inventory - Fetch all items
-router.get('/inventory', async (req, res) => {
+router.get('/inventory', protect, async (req, res) => {
     try {
         const items = await InventoryItem.find().sort({ itemName: 1 });
-        // Enhance items with id (standardize _id to id for frontend if needed, methods work with _id usually but frontend used id)
-        // We will stick to the frontend expecting 'id' potentially, but MongoDB uses '_id'.
-        // Let's map it to keep frontend happy if it relies on 'id'.
-        const formattedItems = items.map(item => ({
-            ...item.toObject(),
-            id: item._id // Map _id to id
-        }));
+        const formattedItems = items.map(item => {
+            const obj = item.toObject();
+            return {
+                ...obj,
+                id: obj._id.toString(),
+                quantityAvailable: Number(obj.quantityAvailable),
+                reorderLevel: Number(obj.reorderLevel)
+            };
+        });
         res.json(formattedItems);
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -27,58 +30,69 @@ router.get('/inventory', async (req, res) => {
 });
 
 // POST /inventory - Add new item
-router.post('/inventory', async (req, res) => {
+router.post('/inventory', protect, async (req, res) => {
     try {
         const { itemName, category, quantityAvailable, unit, reorderLevel } = req.body;
+        const qty = Number(quantityAvailable) || 0;
+        const level = Number(reorderLevel) || 0;
 
-        const stockStatus = calculateStatus(quantityAvailable, reorderLevel);
+        const stockStatus = calculateStatus(qty, level);
 
         const newItem = new InventoryItem({
             itemName,
             category,
-            quantityAvailable,
+            quantityAvailable: qty,
             unit,
-            reorderLevel,
+            reorderLevel: level,
             stockStatus
         });
 
         const savedItem = await newItem.save();
-        res.status(201).json({ ...savedItem.toObject(), id: savedItem._id });
+        const obj = savedItem.toObject();
+        res.status(201).json({
+            ...obj,
+            id: obj._id.toString(),
+            quantityAvailable: Number(obj.quantityAvailable),
+            reorderLevel: Number(obj.reorderLevel)
+        });
     } catch (error) {
         res.status(400).json({ error: error.message });
     }
 });
 
 // PUT /inventory/:id - Update item
-router.put('/inventory/:id', async (req, res) => {
+router.put('/inventory/:id', protect, async (req, res) => {
     try {
         const { id } = req.params;
-        const updates = req.body;
+        const updates = { ...req.body };
 
-        // If updating quantities, recalculate status
-        if (updates.quantityAvailable !== undefined || updates.reorderLevel !== undefined) {
-            // We need to know current values if only one is passed, but generally we expect full object or specific patch
-            // For simplicity, let's assume we fetch, merge, calculate
-            const currentItem = await InventoryItem.findById(id);
-            if (!currentItem) return res.status(404).json({ message: 'Item not found' });
+        const currentItem = await InventoryItem.findById(id);
+        if (!currentItem) return res.status(404).json({ message: 'Item not found' });
 
-            const newQty = updates.quantityAvailable !== undefined ? updates.quantityAvailable : currentItem.quantityAvailable;
-            const newLevel = updates.reorderLevel !== undefined ? updates.reorderLevel : currentItem.reorderLevel;
+        // Ensure numbers are numbers
+        if (updates.quantityAvailable !== undefined) updates.quantityAvailable = Number(updates.quantityAvailable);
+        if (updates.reorderLevel !== undefined) updates.reorderLevel = Number(updates.reorderLevel);
 
-            updates.stockStatus = calculateStatus(newQty, newLevel);
-        }
+        // Recalculate status
+        const newQty = updates.quantityAvailable !== undefined ? updates.quantityAvailable : currentItem.quantityAvailable;
+        const newLevel = updates.reorderLevel !== undefined ? updates.reorderLevel : currentItem.reorderLevel;
+        updates.stockStatus = calculateStatus(newQty, newLevel);
 
         const updatedItem = await InventoryItem.findByIdAndUpdate(id, updates, { new: true });
-        if (!updatedItem) return res.status(404).json({ message: 'Item not found' });
-
-        res.json({ ...updatedItem.toObject(), id: updatedItem._id });
+        const obj = updatedItem.toObject();
+        res.json({
+            ...obj,
+            id: obj._id.toString(),
+            quantityAvailable: Number(obj.quantityAvailable),
+            reorderLevel: Number(obj.reorderLevel)
+        });
     } catch (error) {
         res.status(400).json({ error: error.message });
     }
 });
 
 // DELETE /inventory/:id - Delete item
-router.delete('/inventory/:id', async (req, res) => {
+router.delete('/inventory/:id', protect, async (req, res) => {
     try {
         const { id } = req.params;
         const deletedItem = await InventoryItem.findByIdAndDelete(id);

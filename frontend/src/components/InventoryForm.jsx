@@ -27,13 +27,11 @@ const InventoryForm = ({ initialData, onSubmit, title, buttonText }) => {
 
     const handleSubmit = (e) => {
         e.preventDefault();
-        // Basic validation
         if (!formData.itemName || !formData.category) {
             alert('Please fill in required fields');
             return;
         }
 
-        // Parse numbers
         const submission = {
             ...formData,
             quantityAvailable: parseFloat(formData.quantityAvailable) || 0,
@@ -44,26 +42,31 @@ const InventoryForm = ({ initialData, onSubmit, title, buttonText }) => {
     };
 
     return (
-        <div className="form-card">
-            <div className="form-header">
+        <div className="form-card animate-fade-in">
+            <header className="form-header mb-8">
+                <div className="form-icon-circle mb-4">
+                    {initialData ? '📝' : '📦'}
+                </div>
                 <h2>{title}</h2>
-            </div>
+                <p className="text-muted">Enter the details of the inventory item below.</p>
+            </header>
+
             <form onSubmit={handleSubmit} className="inventory-form">
                 <div className="form-group">
-                    <label>Item Name *</label>
+                    <label>Item Name</label>
                     <input
                         type="text"
                         name="itemName"
                         value={formData.itemName}
                         onChange={handleChange}
-                        placeholder="e.g., Tomato Sauce"
+                        placeholder="e.g., Artisan Flour"
                         required
                     />
                 </div>
 
                 <div className="form-row">
-                    <div className="form-group">
-                        <label>Category *</label>
+                    <div className="form-group field-50">
+                        <label>Category</label>
                         <select
                             name="category"
                             value={formData.category}
@@ -71,56 +74,57 @@ const InventoryForm = ({ initialData, onSubmit, title, buttonText }) => {
                             required
                         >
                             <option value="">Select Category</option>
-                            <option value="Pantry">Pantry</option>
-                            <option value="Refrigerated">Refrigerated</option>
-                            <option value="Frozen">Frozen</option>
+                            <option value="Dairy">Dairy</option>
+                            <option value="Baking">Baking</option>
                             <option value="Produce">Produce</option>
-                            <option value="Supplies">Supplies</option>
+                            <option value="Meat">Meat</option>
+                            <option value="Pantry">Pantry</option>
+                            <option value="Beverages">Beverages</option>
                         </select>
                     </div>
 
-                    <div className="form-group">
-                        <label>Unit *</label>
+                    <div className="form-group field-50">
+                        <label>Unit</label>
                         <input
                             type="text"
                             name="unit"
                             value={formData.unit}
                             onChange={handleChange}
-                            placeholder="kg, liters, cans..."
+                            placeholder="e.g., kg, unit"
                             required
                         />
                     </div>
                 </div>
 
                 <div className="form-row">
-                    <div className="form-group">
-                        <label>Quantity *</label>
+                    <div className="form-group field-50">
+                        <label>Current Quantity</label>
                         <input
                             type="number"
                             name="quantityAvailable"
                             value={formData.quantityAvailable}
                             onChange={handleChange}
                             min="0"
-                            step="1"
+                            step="0.1"
                             required
                         />
                     </div>
 
-                    <div className="form-group">
-                        <label>Reorder Level *</label>
+                    <div className="form-group field-50">
+                        <label>Reorder Threshold</label>
                         <input
                             type="number"
                             name="reorderLevel"
                             value={formData.reorderLevel}
                             onChange={handleChange}
                             min="0"
-                            step="1"
+                            step="0.1"
                             required
                         />
                     </div>
                 </div>
 
-                <div className="form-actions">
+                <div className="form-actions mt-8">
                     <button type="button" className="btn btn-secondary" onClick={() => navigate(-1)}>
                         Cancel
                     </button>
